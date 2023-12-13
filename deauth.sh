@@ -3,12 +3,14 @@ echo 'Your network interface name?'
 read interface
 airmon-ng start $interface
 ud="users-01.csv"
-
+uf="out-01.csv"
 if [ -e "$ud" ]; then
   rm "$ud"
 fi
+if [ -e "$uf" ]; then
+  rm "$uf"
+fi
 sudo xterm -title "Deauth scanner" -e airodump-ng -w out --output-format csv $interface
-
 
 options=()
 
@@ -27,7 +29,7 @@ select choice in "${options[@]}"; do
 done
 bssid=$(echo "$bande" | awk '{print $1}')
 # echo $bssid
-rm out-01.csv
+
 
 
 
